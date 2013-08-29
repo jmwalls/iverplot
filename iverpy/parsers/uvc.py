@@ -4,8 +4,6 @@ UVC log parsing utilities and UVCLog object definition.
 
 from time import strptime, mktime
 
-import cPickle as pickle
-
 from numpy import asarray, zeros
 from pandas import read_csv
 
@@ -109,6 +107,8 @@ class UVCLog (object):
 
 if __name__ == '__main__':
     import sys
+    import cPickle as pickle
+
     from perls.BotParam import BotParam
     import matplotlib.pyplot as plt
 
