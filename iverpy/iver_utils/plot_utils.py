@@ -1,6 +1,17 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+def draw_covariance (ax, mu, Sigma, k2, *args, **kwargs):
+    e,V = np.linalg.eig((1./2)*(Sigma+Sigma.T));
+    A = np.dot (V, np.diag (k2*e).astype (complex)**(1./2))
+    A = np.real (A);
+    t = np.arange (0,2*np.pi+0.1,0.1)
+    c = np.vstack ((np.cos (t), np.sin (t)))
+    y = np.dot (A, c) 
+    y[0,:] += mu[0]
+    y[1,:] += mu[1]
+    ax.plot (y[1,:], y[0,:], *args, **kwargs)
+
 class Picker_plot (object):
     """
     plot data so that a user can select points

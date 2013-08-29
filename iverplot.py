@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Iverplot---plot timeseries (and xy) data from Iver2 UVC and PeRL LCM logs
 

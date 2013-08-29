@@ -200,6 +200,7 @@ class Position_series (Series):
     def __init__ (self):
         super (Position_series, self).__init__ (position_t)
         self.xyzrph = None
+        self.xyzrph_cov = None
 
 class Iver_state_series (Series):
     """
@@ -289,11 +290,12 @@ if __name__ == '__main__':
     with open ('iver.pkl', 'wb') as f:
         pickle.dump (iver, f)
 
-    plt.figure ()
-    plt.plot (iver.state.position.xyzrph[:,1], iver.state.position.xyzrph[:,0], '.')
-    plt.axis ('equal')
-    plt.grid ()
+    if not iver.state is None:
+        plt.figure ()
+        plt.plot (iver.state.position.xyzrph[:,1], iver.state.position.xyzrph[:,0], '.')
+        plt.axis ('equal')
+        plt.grid ()
 
-    plt.show ()
+        plt.show ()
 
     sys.exit (0)
