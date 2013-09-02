@@ -166,6 +166,7 @@ class Lbl_fixer (object):
             self.beacons_used[kk,ii] = 0
 
         self.sol = None
+        self.sol_utime = None
 
     def solve (self, xy_utime, xy):
         """
