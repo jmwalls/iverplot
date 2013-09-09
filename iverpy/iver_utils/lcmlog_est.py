@@ -9,10 +9,10 @@ class Pose_estimate (object):
     """
     time series of iver pose estimates
     """
-    def __init__ (self, logfile):
-        print '{Iver} parsing deif estimator events...'
+    def __init__ (self, logfile, channel):
+        print '{Iver} parsing estimator events...'
         log = lcm.EventLog (logfile)
-        self.pose = parse_from_lcm (log, 'CLIENT_FILTER_TEST', Position_series)
+        self.pose = parse_from_lcm (log, channel, Position_series)
 
     def plot (self, ax, *args, **kwargs):
         ax.plot (self.pose.xyzrph[:,1], self.pose.xyzrph[:,0], *args, **kwargs)
@@ -35,8 +35,9 @@ if __name__ == '__main__':
         with open (sys.argv[1], 'rb') as f:
             est = pickle.load (f)
     else:
-        est = Pose_estimate (sys.argv[1])
-        with open ('iver_est.pkl', 'wb') as f:
+        #est = Pose_estimate (sys.argv[1], 'SERVER_FILTER_TEST')
+        est = Pose_estimate (sys.argv[1], 'CLIENT_FILTER_TEST')
+        with open ('est.pkl', 'wb') as f:
             pickle.dump (est, f)
 
     fig = plt.figure ()
