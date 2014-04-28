@@ -15,17 +15,18 @@ outliers before computing a fix.
 """
 
 import numpy as np
-from scipy.signal import medfilt
 from scipy.optimize import leastsq
+from matplotlib.patches import Circle
 
 from plot_utils import Picker_plot
+from isam_utils import *
 
 speed_of_sound = 1470.
 
 MEDIAN_THRESHOLD = 45./speed_of_sound
 MEDIAN_WIN_SIZE = 5
 
-MAX_DIST_THRESHOLD = 15.
+MAX_DIST_THRESHOLD = 25.
 
 class Lbl_beacon (object):
     """
@@ -75,7 +76,7 @@ def two_beacon_fix (b0, r0, b1, r1, xy_guess):
 
 def ls_cost_func (x, beacons, ranges):
     """
-    returns r**2 - (x-b.x)**2 for each beacon
+    returns r**2 - |x-b.x|**2 for each beacon
     """
     r = np.zeros (len (beacons))
     for ii, b in enumerate (beacons):
@@ -93,10 +94,28 @@ def ls_beacon_fix (beacons, ranges, xy_guess):
     ranges :
     xy_guess : position guess to seed optimization
     """
-    x,success = leastsq (ls_cost_func, xy_guess.reshape (2), args=(beacons, ranges))
+    x,cov_x,infodict,mesg,ier = leastsq (ls_cost_func, xy_guess.reshape (2),
+            args=(beacons, ranges), full_output=True)
+    #print np.linalg.norm (infodict['fvec'])*cov_x
 
-    if not success: return None
-    #elif np.linalg.norm (x-xy_guess) > MAX_DIST_THRESHOLD: return None
+    #fig = plt.figure ()
+    #ax = fig.add_subplot (111)
+
+    #ax.plot (xy_guess[1], xy_guess[0], 'bo')
+    #ax.plot (x[1], x[0], 'r.')
+
+    #for r,b in zip (ranges, beacons):
+    #    ax.plot (b.xyz[1], b.xyz[0], '*', mfc='y', mec='k', ms=10, mew=3)
+    #    ax.add_artist (Circle ([b.xyz[1],b.xyz[0]],r,color='k',lw=2,fc='none'))
+
+    #ax.axis ('equal')
+    #ax.grid ()
+
+    #plt.show ()
+    
+
+    if not ier: return None
+    elif np.linalg.norm (x-xy_guess) > MAX_DIST_THRESHOLD: return None
     else: return x.reshape (2,1)
 
 
@@ -137,20 +156,17 @@ class Lbl_fixer (object):
 
         self.utime = utime
         self.owtts = owtts
+        self.ranges = None
 
         # median filter beacons
         self.beacons_used = np.zeros (owtts.shape)
         for ii in range (len (beacons)):
             owtt = owtts[:,ii]
 
-            #owtt_median = medfilt (owtt, kernel_size=MEDIAN_WIN_SIZE)
-            #diff = np.abs (owtt_median-owtt)
-            #jj = np.argwhere (diff < MEDIAN_THRESHOLD)
-
             fig = plt.figure (figsize=(20,10))
             ax = fig.add_subplot (111)
 
-            data = np.vstack ((self.utime, owtt)).T
+            data = np.column_stack ((self.utime, owtt))
             if not used is None: 
                 jj = np.where (used[:,ii])[0]
                 picker = Picker_plot (ax, data, jj)
@@ -167,6 +183,7 @@ class Lbl_fixer (object):
 
         self.sol = None
         self.sol_utime = None
+        self.sol_beacons = None
 
     def solve (self, xy_utime, xy):
         """
@@ -179,8 +196,9 @@ class Lbl_fixer (object):
         print '2 beacon fixes:', np.count_nonzero (good_beacons==2)
         print '3 beacon fixes:', np.count_nonzero (good_beacons==3)
         
-        sol = []
-        utime = []
+        self.ranges = np.zeros (self.owtts.shape)
+
+        sol,utime,sol_beacons = [],[],[]
         for ii in range (len (self.utime)):
             b_ii = np.where (self.beacons_used[ii,:])[0]
 
@@ -190,6 +208,12 @@ class Lbl_fixer (object):
             z_g = np.interp (ut, xy_utime, xy[:,2])
             xy_g = np.array ([[x_g],[y_g]])
 
+            # correct slant ranges
+            for jj,(o,b) in enumerate (zip (self.owtts[ii,:], self.beacons)):
+                z = ((speed_of_sound*o)**2 - (z_g-b.xyz[2])**2)**(1./2)
+                self.ranges[ii,jj] = z
+
+            # compute 2 beacon fix---should use self.ranges
             if len (b_ii) == 2:
                 b0 = self.beacons[b_ii[0]]
                 b1 = self.beacons[b_ii[1]]
@@ -201,7 +225,9 @@ class Lbl_fixer (object):
                 if not pos is None: 
                     sol.append (pos)
                     utime.append (ut)
+                    sol_beacons.append (len(b_ii))
 
+            # compute >2 beacon fix---should use self.ranges
             elif len (b_ii) > 2:
                 beacons, ranges = [], []
                 for jj in range (nbeacons):
@@ -216,9 +242,29 @@ class Lbl_fixer (object):
                 if not pos is None: 
                     sol.append (pos)
                     utime.append (ut)
+                    sol_beacons.append (len(b_ii))
 
         self.sol = np.asarray (sol).reshape (len (sol), 2).T
         self.sol_utime = np.asarray (utime)
+        self.sol_beacons = np.asarray (sol_beacons)
+
+    def write_isam_factors (self):
+        """
+        write lbl beacon priors and good lbl ranges as factors
+        """
+        log = lcm.EventLog ('lcmlog-lbl-factors', 'w', overwrite=True)
+
+        # write beacon priors
+        for b in self.beacons:
+            write_isam_prior2d (log, b.index+1e4, b.xyz[:2], (2.**2)*np.eye(2))
+
+        # write lbl ranges
+        for ii in range (len (self.utime)):
+            b_ii = np.where (self.beacons_used[ii,:])[0]
+            for b in b_ii:
+                r = self.ranges[ii,b]
+                if np.isnan (r) or np.isinf (r): return
+                write_isam_range2d (log, self.utime[ii], b+1e4, r, 3.**2)
 
 
 if __name__ == '__main__':
@@ -231,7 +277,7 @@ if __name__ == '__main__':
     from perls import BotParam
     from perls import BotCore
 
-    from perls_lcmlog import *
+    from lcmlog_perls import *
 
     # load iver data
     if len (sys.argv) < 2:
@@ -265,6 +311,30 @@ if __name__ == '__main__':
         beacons.append (Lbl_beacon (ii, xyz))
 
     ii_lbl = np.where (iver.acomms.type==iver.acomms.NARROWBAND_LBL)[0]
+
+    if hasattr (iver.state, 'position'):
+        print 'using IVER_STATE to seed optimization'
+        xyz_utime = iver.state.position.utime
+        xyz = iver.state.position.xyzrph[:,:3]
+    elif hasattr (iver.gpsd, 'fix'):
+        print 'using GPSD3 to seed optimization'
+        ii = np.where (iver.gpsd.satellites_used > 9)[0]
+        xyz_utime = iver.gpsd.fix.utime[ii]
+
+        lat = iver.gpsd.fix.latitude[ii]
+        lon = iver.gpsd.fix.longitude[ii]
+        y_lst, x_lst = [],[]
+        for la, lo in zip (lat, lon):
+            y,x = llxy.to_xy (la*180./np.pi, lo*180./np.pi)
+            y_lst.append (y)
+            x_lst.append (x)
+        xyz = np.column_stack ((x_lst, y_lst, 10.*np.ones (len (y_lst))))
+        #plt.plot (xyz[:,1], xyz[:,0], 'r.-')
+        #plt.show ()
+    else:
+        print 'does not have xyz source... cannot continue'
+        sys.exit (0)
+
     
     if not fix_pkl is None:
         fix = Lbl_fixer (beacons, 
@@ -273,7 +343,8 @@ if __name__ == '__main__':
     else:
         fix = Lbl_fixer (beacons, 
                 iver.acomms.utime[ii_lbl], iver.acomms.owtt[ii_lbl,:nbeacons]) 
-    fix.solve (iver.state.position.utime, iver.state.position.xyzrph[:,:3])
+    fix.solve (xyz_utime, xyz)
+    fix.write_isam_factors ()
 
     with open ('lbl_fixer.pkl', 'wb') as f:
         pickle.dump (fix, f)
@@ -287,6 +358,7 @@ if __name__ == '__main__':
         ii_b = np.where (is_good==0)[0]
         ut = np.asarray (fix.utime)
         owtt = fix.owtts[:,ii]
+        #owtt = fix.ranges[:,ii]
 
         ax = fig0.add_subplot (3,1,ii)
         ax.plot (ut[ii_g],owtt[ii_g],'o',mfc='w',mec='b')
@@ -295,8 +367,11 @@ if __name__ == '__main__':
     fig1 = plt.figure ()
     ax1 = fig1.add_subplot (111)
 
-    ax1.plot (iver.state.position.xyzrph[:,1], iver.state.position.xyzrph[:,0], 'r')
+    ii_two = np.where (fix.sol_beacons == 2)[0]
+    ii_ls = np.where (fix.sol_beacons > 2)[0]
+    ax1.plot (xyz[:,1], xyz[:,0], 'r')
     ax1.plot (fix.sol[1,:], fix.sol[0,:], 'bo-')
+    ax1.plot (fix.sol[1,ii_ls], fix.sol[0,ii_ls], 'go')
     for b in beacons:
         ax1.plot (b.xyz[1], b.xyz[0], '*', mfc='y', mec='k', ms=15, mew=3)
     ax1.axis ('equal')

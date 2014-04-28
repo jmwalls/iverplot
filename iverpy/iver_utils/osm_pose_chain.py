@@ -54,12 +54,26 @@ def iver_to_osm_series (osm):
         osms.pc.append (pc)
     return osms
 
+def isam_to_osm_series (isam_nodes):
+    """
+    pack an Osm_series object from an isam_nodes series object
+    """
+    osms = Osm_series ()
+    pc = Pose_chain ()
+    pc.utime = isam_nodes.utime
+    pc.nposes = len (isam_nodes.utime)
+    pc.ids = isam_nodes.id
+    pc.xy = isam_nodes.mu
+    pc.cov = isam_nodes.cov
+    osms.pc.append (pc)
+    return osms
+
 
 if __name__ == '__main__':
     import sys
     import cPickle as pickle
 
-    from perls_lcmlog import *
+    from lcmlog_perls import *
 
     if len (sys.argv) < 2:
         print 'usage: %s <iver.pkl>' % sys.argv[0]

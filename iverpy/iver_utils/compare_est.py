@@ -4,7 +4,7 @@ import cPickle as pickle
 import numpy as np
 import matplotlib.pyplot as plt
 
-from est_lcmlog import Pose_estimate
+from lcmlog_est import Pose_estimate
 
 if __name__ == '__main__':
     if len (sys.argv) < 3:
@@ -20,8 +20,11 @@ if __name__ == '__main__':
     fig_path = plt.figure ()
     ax_path = fig_path.add_subplot (111)
 
-    est0.plot (ax_path, 'b', label='first')
-    est1.plot (ax_path, 'r', label='second')
+    est0.plot (ax_path, 'b.-', label='first')
+    est1.plot (ax_path, 'r.-', label='second')
+
+    ax_path.set_xlabel ('east [m]')
+    ax_path.set_ylabel ('north [m]')
 
     ax_path.legend ()
     ax_path.axis ('equal')
@@ -43,15 +46,21 @@ if __name__ == '__main__':
     dxy = xy0-xy1
     ndxy = (dxy[:,0]**2 + dxy[:,1]**2)**(1./2)
 
+    print 'mean norm diff between poses = ', ndxy.mean ()
+    print 'max norm diff between poses = ', ndxy.max ()
+
     fig_diff = plt.figure ()
     ax_mean = fig_diff.add_subplot (211)
     ax_mean.plot (1e-6*(ut-ut[0]), ndxy, 'g', lw=2)
+    ax_mean.set_ylabel ('norm difference [m]')
 
     ax_cov = fig_diff.add_subplot (212)
-    ax_cov.plot (1e-6*(ut-ut[0]), cov_xx0**(1./2), 'r')
-    ax_cov.plot (1e-6*(ut-ut[0]), cov_yy0**(1./2), 'r')
-    ax_cov.plot (1e-6*(ut-ut[0]), cov_xx1**(1./2), 'b--')
-    ax_cov.plot (1e-6*(ut-ut[0]), cov_yy1**(1./2), 'b--')
+    ax_cov.plot (1e-6*(ut-ut[0]), cov_xx0**(1./2), 'b')
+    ax_cov.plot (1e-6*(ut-ut[0]), cov_yy0**(1./2), 'b')
+    ax_cov.plot (1e-6*(ut-ut[0]), cov_xx1**(1./2), 'r--')
+    ax_cov.plot (1e-6*(ut-ut[0]), cov_yy1**(1./2), 'r--')
+    ax_cov.set_ylabel ('$\sigma$ uncertainty [m]')
+    ax_cov.set_xlabel ('mission time [s]')
 
 
     plt.show ()

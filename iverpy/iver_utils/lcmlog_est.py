@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import lcm
-from perls_lcmlog import *
+from lcmlog_perls import *
 from plot_utils import draw_covariance
 
 class Pose_estimate (object):
@@ -10,7 +10,7 @@ class Pose_estimate (object):
     time series of iver pose estimates
     """
     def __init__ (self, logfile, channel):
-        print '{Iver} parsing estimator events...'
+        print '{Iver} parsing estimator events from %s...' % channel
         log = lcm.EventLog (logfile)
         self.pose = parse_from_lcm (log, channel, Position_series)
 
@@ -36,7 +36,9 @@ if __name__ == '__main__':
             est = pickle.load (f)
     else:
         #est = Pose_estimate (sys.argv[1], 'SERVER_FILTER_TEST')
+        #est = Pose_estimate (sys.argv[1], 'SERVER_ISAM_TEST')
         est = Pose_estimate (sys.argv[1], 'CLIENT_FILTER_TEST')
+        #est = Pose_estimate (sys.argv[1], 'CLIENT_ISAM_TEST')
         with open ('est.pkl', 'wb') as f:
             pickle.dump (est, f)
 

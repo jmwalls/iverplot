@@ -1,10 +1,14 @@
 import sys
 import cPickle as pickle
 
-import matplotlib.pyplot as plt
-
-from perls_lcmlog import *
+from lcmlog_perls import *
 from osm_pose_chain import *
+
+import matplotlib.pyplot as plt
+#from matplotlib import rc
+#rc ("text", usetex=True)
+#rc ("font", family="serif")
+#rc ("font", size=14)
 
 if __name__ == '__main__':
     if len (sys.argv) < 3:
@@ -24,6 +28,7 @@ if __name__ == '__main__':
 
     # let's compare the last client pose chain for now 
     client_pc = client_osm.pc[-1]
+    #client_pc = client_osm.pc[-2]
 
     # find the server pose chain that has the same last id
     for server_pc in reversed (server_osm.pc):
@@ -41,21 +46,33 @@ if __name__ == '__main__':
     ii_max = np.argmax (dist)
     print 'mean norm diff between poses = ', dist.mean ()
     print 'max norm diff between poses = ', dist.max ()
+    print 'node id of max = ', client_pc.ids[ii_max]
 
     # plot the pose chains
-    fig = plt.figure (figsize=(10,10))
+    fig = plt.figure ()
     ax = fig.add_subplot (111)
 
-    server_pc.plot (ax, 'b', lw=2)
-    client_pc.plot (ax, 'r', lw=1.5)
+    #server_pc.plot (ax, 'b', lw=2)
+    #client_pc.plot (ax, 'r', lw=4)
+    server_pc.plot (ax, 'b')
+    client_pc.plot (ax, 'r')
+
+    ls = ax.lines[0]
+    lc = ax.lines[-1]
 
     ax.plot (client_xy[ii_max,1], client_xy[ii_max,0], 
             '*',mfc='y',mec='k',mew=2,label='max dist pose')
 
+    ax.set_xlabel ('east [m]')
+    ax.set_ylabel ('north [m]')
+
     ax.axis ('equal')
     ax.grid ()
-    ax.legend (numpoints=1)
+    ax.legend ((ls, lc), ('Server', 'Client'))
+    #ax.legend (numpoints=1)
 
+    #fig.savefig ('pgreconstruct.pdf', transparent=True, bbox_inches='tight',
+    #        pad_inches=0)
     plt.show ()
 
     sys.exit (0)
